@@ -66,7 +66,7 @@ def test_weakly_supported_sentence_is_flagged():
          "author": "Bo"}
     text, weak = seance.annotate("Bo added the MIT license [abc1234]. Kubernetes clusters scaled me [abc1234].",
                                  {"abc1234": c})
-    assert len(weak) == 1 and "Kubernetes" in weak[0] and text.endswith("⚠")
+    assert len(weak) == 1 and "Kubernetes" in weak[0] and text.endswith("[abc1234] ⚠.")
 
 
 class FakeMedium:
@@ -108,3 +108,24 @@ def test_verse_with_invented_numbers_is_retried():
     m = FakeMedium(lambda _: next(replies))
     given = "72 commits by 19 people. Lived 5 years, 0 months."
     assert seance.verse(m, given, {}) == "Nineteen hands, five years of grace"
+
+
+def test_citation_lists_are_split_and_each_checked():
+    text = seance.split_cite_lists("Released twice [abc1234, 9999999].")
+    checked, valid, struck = seance.verify(text, {"abc1234": {}})
+    assert valid == ["abc1234"] and struck == ["9999999"]
+
+
+def test_diff_excerpt_has_no_blob_hashes(grave):
+    c = seance.load_commits(grave)
+    assert all("index " not in x["diff"] and "@@" not in x["diff"] for x in c)
+
+
+def test_citing_someone_elses_commit_is_flagged():
+    a = {"subject": "Add WTFPL", "body": "", "files": ["package.json"], "diff": "+WTFPL", "date": "2016", "author": "Azer Koçulu"}
+    b = {"subject": "License Update", "body": "", "files": ["package.json"], "diff": "+MIT", "date": "2019", "author": "100Errors"}
+    _, weak = seance.annotate("Azer Koçulu added the WTFPL license [aaaaaaa], and Azer Koçulu moved it to MIT [bbbbbbb].",
+                              {"aaaaaaa": a, "bbbbbbb": b})
+    assert weak == ["and Azer Koçulu moved it to MIT"]
+    _, ok = seance.annotate("Azer Koçulu added the WTFPL license [aaaaaaa].", {"aaaaaaa": a, "bbbbbbb": b})
+    assert not ok

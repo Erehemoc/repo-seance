@@ -53,7 +53,10 @@ def load_commits(repo: str, diff_chars: int = 1200) -> list[dict]:
                 d = git(repo, "show", "--format=", "--unified=1", "--no-color", c["hash"])
             except subprocess.CalledProcessError:
                 d = ""
-            c["diff"] = d[:diff_chars]
+            # keep only changed lines: diff headers carry blob hashes ("index 299ad3b..da6faee") that a
+            # model happily mistakes for commit hashes
+            lines = [l for l in d.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+            c["diff"] = "\n".join(lines)[:diff_chars]
     return commits
 
 
@@ -124,7 +127,9 @@ def tombstone(name: str, f: dict) -> str:
 # ---------------------------------------------------------------- finding the memories
 _TOK = re.compile(r"[a-z0-9]+")
 _STOP = set("the a an and or of to in on for is are was were it its this that with you your i me my "
-            "what why how when who did do does from by at as be been about".split())
+            "what why how when who did do does from by at as be been about which then also later after "
+            "before into over there their them they had has have will would could should being more most "
+            "some such very just only than these those while so but not no".split())
 
 
 def stem(t: str) -> str:
@@ -214,9 +219,10 @@ GHOST_SYSTEM = ("You are the ghost of the open-source project {name}. Speak in t
                 "with a faint chill, like a spirit remembering its life. You may ONLY use the memories below "
                 "(commits from your own git history). End every sentence with the commit it comes from, as "
                 "[hash], using the exact short hash shown: the citation goes AFTER the claim, at the end of the "
-                "sentence. Only say what that commit's message or change shows. If the memories do not answer "
-                "the question, say only: \"I do not remember.\" Never invent commits, people, versions or dates. "
-                "At most 5 sentences.")
+                "sentence. Answer the question directly in 2 to 4 sentences; each sentence states ONE memory and "
+                "ends with exactly one citation. Only say what that commit's message or change shows. If the "
+                "memories do not answer the question, say only: \"I do not remember.\" Never invent commits, "
+                "people, versions or dates.")
 
 
 def memories_block(mem: list[dict]) -> str:
@@ -224,12 +230,24 @@ def memories_block(mem: list[dict]) -> str:
     for c in mem:
         files = ", ".join(c["files"][:6])
         body = (" " + c["body"].replace("\n", " ")[:200]) if c["body"] else ""
-        diff = c["diff"].replace("\n", " ⏎ ")[:220]
-        rows.append(f"[{c['hash']}] {c['date']} by {c['author']}: {c['subject']}{body}\n  files: {files}\n  change: {diff}")
+        added = " / ".join(l[1:].strip() for l in c["diff"].splitlines() if l.startswith("+") and l[1:].strip())
+        removed = " / ".join(l[1:].strip() for l in c["diff"].splitlines() if l.startswith("-") and l[1:].strip())
+        change = ""
+        if added:
+            change += f"\n  ADDED: {added[:160]}"
+        if removed:
+            change += f"\n  REMOVED: {removed[:160]}"
+        rows.append(f"[{c['hash']}] {c['date']}, author {c['author']}: {c['subject']}{body}\n  files: {files}{change}")
     return "\n".join(rows)
 
 
 _CITE = re.compile(r"\[([0-9a-f]{6,12})\]")
+_CITE_LIST = re.compile(r"\[((?:[0-9a-f]{6,12}\s*[,;]\s*)+[0-9a-f]{6,12})\]")
+
+
+def split_cite_lists(text: str) -> str:
+    """[a1b2c3d, e4f5a6b] -> [a1b2c3d] [e4f5a6b], so every hash in a list is checked."""
+    return _CITE_LIST.sub(lambda m: " ".join(f"[{h}]" for h in re.split(r"\s*[,;]\s*", m.group(1))), text)
 
 
 def verify(answer: str, allowed: dict[str, dict]) -> tuple[str, list[str], list[str]]:
@@ -248,7 +266,9 @@ def verify(answer: str, allowed: dict[str, dict]) -> tuple[str, list[str], list[
         struck.append(h)
         return f"[~~{h}~~ not in my memories]"
 
-    return _CITE.sub(fix, answer), valid, struck
+    out = _CITE.sub(fix, answer)
+    out = re.sub(r"\s+([,.;])", r"\1", out)  # "[abc1234] ," -> "[abc1234],"
+    return out, valid, struck
 
 
 def support(sentence: str, commit: dict) -> float:
@@ -265,21 +285,47 @@ _GHOSTLY = set("remember remembered recall shift then later began once felt feel
                "time times ago yes still now there here they them he him she her someone something new".split())
 
 
+def wrong_person(sentence: str, hashes: list[str], allowed: dict[str, dict]) -> bool:
+    """The sentence names someone, but a commit it cites was written by somebody it does not name."""
+    low = sentence.lower()
+
+    def named(author: str) -> bool:
+        parts = [p for p in re.findall(r"[\w]+", author.lower()) if len(p) >= 4]
+        return bool(parts) and any(re.search(rf"\b{re.escape(p)}\b", low) for p in parts)
+
+    people = {c["author"] for c in allowed.values()}
+    if not any(named(a) for a in people):
+        return False
+    return any(not named(allowed[h]["author"]) for h in hashes)
+
+
 _FORGOT = re.compile(r"\b(do not|don't|cannot|can't) (remember|recall)\b", re.I)
 
 
 def annotate(answer: str, allowed: dict[str, dict], threshold: float = 0.34) -> tuple[str, list[str]]:
-    """Mark sentences whose citation does not actually back the words in them."""
+    """Mark each claim whose citation does not back it, right after that citation.
+
+    A claim is the text between one citation and the previous one (or the start of the sentence);
+    consecutive citations with nothing between them share the claim before them. A claim is weak if
+    too few of its words appear in the cited commit, or if it names a person who did not write it."""
     out, weak = [], []
     for sent in re.split(r"(?<=[.!?…])\s+", answer):
         if _FORGOT.search(sent):
             out.append(re.sub(r"\s*\[[0-9a-f]{6,12}\]", "", sent))  # "I do not remember" is not a claim
             continue
-        hs = [h for h in _CITE.findall(sent) if h in allowed]
-        if hs and max(support(sent, allowed[h]) for h in hs) < threshold:
-            weak.append(sent)
-            sent += " ⚠"
-        out.append(sent)
+        pieces, last, claim = [], 0, ""
+        for m in _CITE.finditer(sent):
+            between = sent[last:m.start()]
+            if re.search(r"\w", between):
+                claim = between
+            pieces.append(sent[last:m.end()])
+            h = m.group(1)
+            if h in allowed and (support(claim, allowed[h]) < threshold or wrong_person(claim, [h], allowed)):
+                weak.append(claim.strip(" ,;"))
+                pieces.append(" ⚠")
+            last = m.end()
+        pieces.append(sent[last:])
+        out.append("".join(pieces))
     return " ".join(out), weak
 
 
@@ -291,19 +337,19 @@ def ask(repo: str, question: str, medium: Medium, k: int = 6) -> dict:
         return {"answer": "The spirits are silent: nothing in my history speaks to that.", "valid": [],
                 "struck": [], "weak": [], "memories": []}
     raw = medium.speak(GHOST_SYSTEM.format(name=name),
-                       f"Your memories:\n{memories_block(mem)}\n\nThe living ask: {question}")
+                       f"Your memories:\n{memories_block(mem)}\n\nThe living ask: {question}", temperature=0.6)
     allowed = {c["hash"]: c for c in mem}
+    raw = split_cite_lists(raw)
     checked, valid, struck = verify(raw, allowed)
+    weak = []
     if valid:
-        checked, weak = annotate(checked, allowed)
-        claims = [x for x in re.split(r"(?<=[.!?…])\s+", checked) if x.strip() and not _FORGOT.search(x)]
+        sents = [x for x in re.split(r"(?<=[.!?…])\s+", checked) if x.strip()]
+        claims = [x for x in sents if not _FORGOT.search(x)]
         if not claims:
-            valid, weak = [], []
+            valid = []
         else:  # a bare "I do not remember." next to real memories is just the ghost hedging
-            checked = " ".join(x for x in re.split(r"(?<=[.!?…])\s+", checked)
-                               if not re.fullmatch(r"\s*I (do not|don't) remember\.?\s*", x))
-    else:
-        weak = []
+            checked = " ".join(x for x in sents if not re.fullmatch(r"\s*I (do not|don't) remember[^.]*\.?\s*", x))
+            checked, weak = annotate(checked, allowed)
     if not valid:
         checked = ("The spirits are silent: the ghost could not point to a single commit for that. "
                    "Closest memories are listed below.")
@@ -386,7 +432,7 @@ def main(argv=None):
     print(f"\n🕯  you ask {name}: {args.question}\n")
     print("👻 " + r["answer"] + "\n")
     if r.get("weak"):
-        print(f"   ⚠ {len(r['weak'])} sentence(s) cite a commit that does not clearly say that: read the evidence")
+        print(f"   ⚠ {len(r['weak'])} claim(s) cite a commit that does not clearly say that: check the evidence")
     if r["struck"]:
         print(f"   ({len(r['struck'])} citation(s) struck: the ghost named commits it was never shown)")
     shown = [c for c in r["memories"] if c["hash"] in r["valid"]] or r["memories"]

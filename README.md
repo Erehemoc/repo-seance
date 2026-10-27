@@ -12,7 +12,7 @@ Every abandoned repository is a small grave. Its history is still all there: who
 ```bash
 git clone https://github.com/left-pad/left-pad
 python seance.py epitaph left-pad
-python seance.py ask left-pad "Who gave you a license, and which one?"
+python seance.py ask left-pad "Why did you change hands in 2016?"
 ```
 
 ## A ghost that cannot lie about its own life
@@ -22,7 +22,7 @@ A model asked about a project's past will happily invent one. The séance has ru
 1. **The tombstone is not written by the model.** Dates, counts, last words and keepers are computed from git in Python. Gemma only writes the verse, and any number in the verse must be one of the facts it was given. If it writes "thirteen winters" for a five-year life, the verse is thrown away and asked for again.
 2. **The ghost only sees a few memories.** For each question, a small BM25 search picks about six commits (message, changed files, a slice of the diff, author, date). Gemma answers from those and nothing else.
 3. **Citations are checked.** A citation to a commit the ghost was not shown is struck out (`[~~1234567~~ not in my memories]`).
-4. **Citations are also checked for meaning.** If a sentence cites a real commit whose words do not back it up, the sentence gets a ⚠.
+4. **Citations are also checked for meaning.** If a claim cites a real commit whose words do not back it up, or names someone who did not write that commit, it gets a ⚠.
 5. **No citation, no answer.** If the ghost cannot point to a single commit, or only says it does not remember, the reply is *"The spirits are silent"*, followed by the closest commits so you can look yourself.
 
 Every answer ends with the evidence: the cited commits with their dates, authors and messages.
@@ -50,20 +50,32 @@ Seven years lost, eternally.
 ```
 
 ```
-🕯  you ask left-pad: Who gave you a license, and which one?
+🕯  you ask jquery-pjax: How did you make the back button work?
 
-👻 I remember being updated with the MIT license [d81cb1c], and the WTFPL was initially added by cht8687 [5836927].
-   I then had the WTFPL replaced by the MIT license by 100Errors [bc08b65]. I was initially using the WTFPL
-   license [5836927], and later replaced with a LICENSE file [6d35dfb].
+👻 I remember a fix to reset the hash using `window.location.href = hash` [a19d6fe] to resolve a bug where the
+   back button failed after navigating with a hash [a19d6fe] and I also added a loading event when hitting the
+   back button [4bfa2fa] to ensure proper behavior. I also had to prevent browser caching of pjax responses
+   [75bd2d6] to avoid the back button issue.
 
 📜 evidence:
-   5836927  2016-09-24  cht8687: [Issue20]: Add in WTFPL
-   6d35dfb  2018-11-13  jamie: Deleting COPYING; will replace with LICENSE file
-   bc08b65  2019-01-06  100Errors: License Update
-   d81cb1c  2018-11-13  jamie: Create LICENSE
+   75bd2d6  2011-04-04  Chris Wanstrath: Don't browser cache pjax responses (back button bug)
+   a19d6fe  2011-07-07  Markus Kaiserswerth: Fix a bug that caused the back button to fail working after navigating to a URL containing a hash
+   4bfa2fa  2011-02-28  Chris Wanstrath: fire loading event when you hit the back button too
 ```
 
-All of that checks out: `bc08b65` changes `"license": "WTFPL"` to `"MIT"` in `package.json`, and `d81cb1c` adds an MIT `LICENSE`.
+All of that checks out: `a19d6fe` replaces `window.location.hash = hash` with `window.location.href = hash`, and `4bfa2fa` binds a `loading.pjax` event.
+
+```
+🕯  you ask left-pad: Why did you change hands in 2016?
+
+👻 I was initially created in 2014 with a simple core [2d60a7f] ⚠, and then Cameron Westland took over in 2016 to
+   establish a proper repository [c2222c6], followed by updates to the maintainers [b1f166e], and later, Steve Mao
+   released several versions [3c57643], [7898e33], [aff6d74].
+
+   ⚠ 1 claim(s) cite a commit that does not clearly say that: check the evidence
+```
+
+The ⚠ is right: the first commit's message is just `initial`, so "a simple core" is the ghost embellishing.
 
 ```
 🕯  you ask left-pad: What was your favourite food?
@@ -71,7 +83,7 @@ All of that checks out: `bc08b65` changes `"license": "WTFPL"` to `"MIT"` in `pa
 👻 The spirits are silent: nothing in my history speaks to that.
 ```
 
-All transcripts are in [`demo/`](demo), including one from `jquery-pjax` (*"How did you make the back button work?"*).
+All transcripts are in [`demo/`](demo), including the one where the checks miss a mistake (see Limits).
 
 ## Run it
 
@@ -80,7 +92,7 @@ pip install -r requirements.txt     # llama-cpp-python
 python fetch_model.py               # Gemma 3 4B GGUF, ~2.5 GB, one time (or: python fetch_model.py 1b)
 python seance.py epitaph path/to/repo          # add --no-verse for facts only, no model
 python seance.py ask path/to/repo "your question" [-k 6]
-python -m pytest -q                 # 10 tests, no model needed
+python -m pytest -q                 # 13 tests, no model needed
 ```
 
 A question takes about a minute on two CPU cores, and less on a laptop. Nothing leaves your machine: no API key and no network after the model download.
@@ -89,7 +101,7 @@ A question takes about a minute on two CPU cores, and less on a laptop. Nothing 
 
 - The ghost knows only what commit messages and diff excerpts say. If a project died because of a blog post, an npm drama or a burnt-out maintainer, the repository usually does not record it, and the ghost will (correctly) not remember.
 - Retrieval is keyword-based with a small synonym list ("change hands" → maintainers, publishing). A question phrased far from the commits' words may come back silent.
-- The ⚠ check is lexical. It catches a sentence that cites the wrong commit, but not a sentence that is subtly overstated.
+- The ⚠ check is lexical, plus a check that a named person actually wrote the cited commit. It catches a claim pinned to the wrong commit or the wrong person, but not a claim that gets the direction of a change wrong. In [`demo/ask-license.txt`](demo/ask-license.txt) the ghost says the old COPYING file was deleted "in favor of the WTFPL" [6d35dfb]. In fact that commit removed the WTFPL text so an MIT LICENSE could replace it, and nothing flagged the claim. That is why every answer prints its evidence.
 - Only the default branch is read. Bots bumping dependencies on side branches are not signs of life.
 
 Gemma is used under the [Gemma Terms of Use](https://ai.google.dev/gemma/terms). Code is MIT licensed. Built with AI assistance (Claude).

@@ -61,11 +61,11 @@ typed("$ python seance.py epitaph left-pad")
 screen.append(("   … Gemma 3 4B, local, 2 CPU cores, no network (sped up) …", DIM, font)); show(900)
 emit("demo/epitaph.txt", per_line=140, hold=4200)
 
-for q, f in [("Why did you change hands in 2016?", "demo/ask-hands.txt"),
-             ("Who gave you a license, and which one?", "demo/ask-license.txt"),
-             ("What was your favourite food?", "demo/ask-food.txt")]:
+for repo, q, f in [("jquery-pjax", "How did you make the back button work?", "demo/ask-pjax.txt"),
+                   ("left-pad", "Why did you change hands in 2016?", "demo/ask-hands.txt"),
+                   ("left-pad", "What was your favourite food?", "demo/ask-food.txt")]:
     screen[:] = [("", FG, bold)]
-    typed(f'$ python seance.py ask left-pad "{q}"')
+    typed(f'$ python seance.py ask {repo} "{q}"')
     screen.append(("   … the medium listens (~1 min on CPU, sped up) …", DIM, font)); show(700)
     emit(f, hold=4500)
 
