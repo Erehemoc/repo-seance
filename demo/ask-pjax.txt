@@ -1,11 +1,9 @@
 
 🕯  you ask jquery-pjax: How did you make the back button work?
 
-👻 I fixed a bug that caused the back button to fail after navigating to a URL containing a hash [a19d6fe], and I split the tests to make them less confusing [e4fed72]. I also addressed a caching issue to prevent back button problems [75bd2d6]. I implemented a fallback for browsers that couldn't find the container [c22413b], and I worked around a webkit bug [41c5d19].
+👻 I remember a fix to reset the hash using `window.location.href = hash` [a19d6fe] to resolve a bug where the back button failed after navigating with a hash [a19d6fe] and I also added a loading event when hitting the back button [4bfa2fa] to ensure proper behavior. I also had to prevent browser caching of pjax responses [75bd2d6] to avoid the back button issue.
 
 📜 evidence:
-   e4fed72  2014-07-10  Ryan Fitzgerald: Split up and simplify maxCacheLength tests
-   a19d6fe  2011-07-07  Markus Kaiserswerth: Fix a bug that caused the back button to fail working after navigating to a URL containing a hash
    75bd2d6  2011-04-04  Chris Wanstrath: Don't browser cache pjax responses (back button bug)
-   c22413b  2011-02-28  Chris Wanstrath: fallback to normal "back" button behavior if we can't find the container we need
-   41c5d19  2012-08-27  Joshua Peek: Work around webkit replace bug
+   a19d6fe  2011-07-07  Markus Kaiserswerth: Fix a bug that caused the back button to fail working after navigating to a URL containing a hash
+   4bfa2fa  2011-02-28  Chris Wanstrath: fire loading event when you hit the back button too

@@ -1,10 +1,13 @@
 
 🕯  you ask left-pad: Why did you change hands in 2016?
 
-👻 I updated maintainers [b1f166e], and then I was published from a new repository [c2222c6]. I was then updated to version 1.1.0 [a29ab44], and later to 1.1.1 [3c57643].
+👻 I was initially created in 2014 with a simple core [2d60a7f] ⚠, and then Cameron Westland took over in 2016 to establish a proper repository [c2222c6], followed by updates to the maintainers [b1f166e], and later, Steve Mao released several versions [3c57643], [7898e33], [aff6d74].
 
+   ⚠ 1 claim(s) cite a commit that does not clearly say that: check the evidence
 📜 evidence:
-   b1f166e  2016-03-22  Cameron Westland: Updated maintainers
    c2222c6  2016-03-22  Cameron Westland: Publishing version from new repostiroy
-   a29ab44  2016-05-01  Steve Mao: 1.1.0
+   b1f166e  2016-03-22  Cameron Westland: Updated maintainers
+   2d60a7f  2014-03-14  E.Azer Koçulu: initial
    3c57643  2016-07-08  Steve Mao: 1.1.1
+   7898e33  2016-09-24  Steve Mao: 1.1.2
+   aff6d74  2016-10-01  Steve Mao: 1.1.3
