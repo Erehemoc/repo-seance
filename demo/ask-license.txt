@@ -1,0 +1,10 @@
+
+🕯  you ask left-pad: Who gave you a license, and which one?
+
+👻 I remember being updated with the MIT license [d81cb1c], and the WTFPL was initially added by cht8687 [5836927]. I then had the WTFPL replaced by the MIT license by 100Errors [bc08b65]. I was initially using the WTFPL license [5836927], and later replaced with a LICENSE file [6d35dfb].
+
+📜 evidence:
+   5836927  2016-09-24  cht8687: [Issue20]: Add in WTFPL
+   6d35dfb  2018-11-13  jamie: Deleting COPYING; will replace with LICENSE file
+   bc08b65  2019-01-06  100Errors: License Update
+   d81cb1c  2018-11-13  jamie: Create LICENSE

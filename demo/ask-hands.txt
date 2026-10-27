@@ -1,0 +1,10 @@
+
+🕯  you ask left-pad: Why did you change hands in 2016?
+
+👻 I updated maintainers [b1f166e], and then I was published from a new repository [c2222c6]. I was then updated to version 1.1.0 [a29ab44], and later to 1.1.1 [3c57643].
+
+📜 evidence:
+   b1f166e  2016-03-22  Cameron Westland: Updated maintainers
+   c2222c6  2016-03-22  Cameron Westland: Publishing version from new repostiroy
+   a29ab44  2016-05-01  Steve Mao: 1.1.0
+   3c57643  2016-07-08  Steve Mao: 1.1.1
