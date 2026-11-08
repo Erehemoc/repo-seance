@@ -92,10 +92,28 @@ pip install -r requirements.txt     # llama-cpp-python
 python fetch_model.py               # Gemma 3 4B GGUF, ~2.5 GB, one time (or: python fetch_model.py 1b)
 python seance.py epitaph path/to/repo          # add --no-verse for facts only, no model
 python seance.py ask path/to/repo "your question" [-k 6]
-python -m pytest -q                 # 13 tests, no model needed
+python -m pytest -q                 # 20 tests, no model or network needed
 ```
 
 A question takes about a minute on two CPU cores, and less on a laptop. Nothing leaves your machine: no API key and no network after the model download.
+
+## Through Otari: rumours from the living
+
+Git rarely records why a project died. `left-pad` was unpublished over an npm naming dispute, and none of that is in its history, so the offline ghost (correctly) does not remember it.
+
+With [Otari](https://otari.ai), Mozilla.ai's open-source AI gateway, the séance can also listen to the living:
+
+```bash
+export OTARI_API_KEY=otk_...          # or put it in otari_key.txt (git-ignored)
+python seance.py ask left-pad "Why were you removed from npm?" --otari --rumours
+python seance.py epitaph left-pad --otari google/gemma-3-27b-it
+```
+
+- **The voice.** `--otari [MODEL]` sends the ghost's words through Otari instead of a local GGUF. MODEL is any model your workspace serves or a routing policy; the default `seance` is a policy you create on otari.ai, for example an open-weight Gemma first and another open-weight model on failure. Every answer prints which provider and model actually spoke, and whether a fallback stepped in (Otari's `Otari-Provider`, `Otari-Model` and `Otari-Fallback` headers).
+- **The rumours.** `--rumours` runs Otari's search API on the question. The ghost may repeat what the results say, but each rumour must end with the tag of the result it came from (`[r1]`). Tags that point to no result are struck, rumours that say more than their source get a ⚠, and every source URL is printed. Rumours are printed in their own section, never mixed with the commit-cited memories.
+- **The bill.** Set a budget on the key in the Otari dashboard; the séance never needs more than a few cents a question.
+
+The same checks apply to every answer, whichever model speaks. Otari mode needs no extra packages: Otari speaks the OpenAI API, so the client is a plain JSON POST (`otari_medium.py`). `python -m pytest -q` runs 20 tests, none of which touch the network.
 
 ## Limits
 

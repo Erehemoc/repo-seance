@@ -402,7 +402,7 @@ def verse(medium: Medium, given: str, f: dict, tries: int = 4) -> str:
 
 # ---------------------------------------------------------------- CLI
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Summon the ghost of an abandoned repository (offline).")
+    ap = argparse.ArgumentParser(description="Summon the ghost of an abandoned repository: offline with Gemma, or through Otari.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("epitaph", help="tombstone from git facts + four lines of verse from Gemma")
     e.add_argument("repo")
@@ -411,24 +411,42 @@ def main(argv=None):
     a.add_argument("repo")
     a.add_argument("question")
     a.add_argument("-k", type=int, default=6, help="how many memories (commits) the ghost is shown")
+    a.add_argument("--rumours", action="store_true",
+                   help="with --otari: also ask what the living say (Otari web search), kept apart from git")
     for p in (e, a):
-        p.add_argument("--model", default=DEFAULT_MODEL)
+        p.add_argument("--model", default=DEFAULT_MODEL, help="local GGUF path (offline mode)")
+        p.add_argument("--otari", nargs="?", const="", metavar="MODEL",
+                       help="speak through Otari.ai instead of a local model; MODEL is any model or routing "
+                            "policy your workspace serves (default: $OTARI_MODEL or 'seance')")
+        p.add_argument("--key-file", help="file holding the Otari key (default: $OTARI_API_KEY or otari_key.txt)")
     args = ap.parse_args(argv)
+    if args.cmd == "ask" and args.rumours and args.otari is None:
+        ap.error("--rumours needs --otari (rumours come from Otari's search)")
     name = repo_name(args.repo)
+
+    def summon():
+        if args.otari is None:
+            return Medium(args.model)
+        import otari_medium
+        return otari_medium.OtariMedium(args.otari or otari_medium.DEFAULT_MODEL,
+                                        key=otari_medium.api_key(args.key_file))
 
     if args.cmd == "epitaph":
         f = facts(load_commits(args.repo, diff_chars=0))
         print(tombstone(name, f))
         if not args.no_verse:
-            m = Medium(args.model)
+            m = summon()
             given = (f"Project: {name}. Born {f['born']} ({f['first_words']!r}). Last words {f['died']}: "
                      f"{f['last_words']!r}. {f['commits']} commits by {f['souls']} people. "
                      f"Lived {years(f['lifespan_days'])}. Silent for {years(f['silent_days'])}.")
             print("\n" + verse(m, given, f))
+            if getattr(m, "who", None) and m.who():
+                print(f"\n   ({m.who()})")
         return 0
 
-    m = Medium(args.model)
+    m = summon()
     r = ask(args.repo, args.question, m, k=args.k)
+    voice = m.who() if getattr(m, "who", None) else ""
     print(f"\n🕯  you ask {name}: {args.question}\n")
     print("👻 " + r["answer"] + "\n")
     if r.get("weak"):
@@ -441,6 +459,23 @@ def main(argv=None):
         print(f"   {c['hash']}  {c['date']}  {c['author']}: {c['subject']}")
     if not shown:
         print("   (none: no commit shares a word with the question)")
+    if voice:
+        print(f"   ({voice})")
+    if args.rumours:
+        import otari_medium
+        try:
+            rr = otari_medium.rumours(name, args.question, m, support)
+        except otari_medium.OtariError as err:
+            print(f"\n🗞  the living could not be reached: {err}")
+            return 0
+        print("\n🗞  what the living say (web search via Otari, NOT from git):\n")
+        print("   " + rr["text"] + "\n")
+        if rr["weak"]:
+            print(f"   ⚠ {len(rr['weak'])} rumour(s) say more than their source does: check the link")
+        if rr["struck"]:
+            print(f"   ({len(rr['struck'])} tag(s) struck: they point to no search result)")
+        for tag, src in rr["sources"]:
+            print(f"   [{tag}] {src.get('title', '')[:90]}\n        {src['url']}")
     return 0
 
 
