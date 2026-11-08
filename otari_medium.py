@@ -20,7 +20,14 @@ import re
 import urllib.error
 import urllib.request
 
-BASE_URL = os.environ.get("OTARI_BASE_URL", "https://api.otari.ai/api")
+BASE_URL = os.environ.get("OTARI_BASE_URL", "")  # empty: chosen from the key's region
+
+
+def base_url_for(key: str) -> str:
+    """otari.ai keys belong to one region; an EU key ("otk_v1_eu_...") only works on the EU URL."""
+    if BASE_URL:
+        return BASE_URL
+    return "https://eu.api.otari.ai/api" if key.startswith("otk_v1_eu") else "https://api.otari.ai/api"
 DEFAULT_MODEL = os.environ.get("OTARI_MODEL", "seance")  # a routing policy you create on otari.ai
 
 
@@ -38,7 +45,7 @@ class OtariError(RuntimeError):
     pass
 
 
-def _post(path: str, body: dict, key: str, base_url: str = BASE_URL, timeout: int = 120):
+def _post(path: str, body: dict, key: str, base_url: str, timeout: int = 120):
     req = urllib.request.Request(base_url.rstrip("/") + "/v1" + path, data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                                           "User-Agent": "repo-seance"},
@@ -58,9 +65,9 @@ def _post(path: str, body: dict, key: str, base_url: str = BASE_URL, timeout: in
 class OtariMedium:
     """Same interface as seance.Medium (speak), but the voice comes through Otari."""
 
-    def __init__(self, model: str = DEFAULT_MODEL, key: str | None = None, base_url: str = BASE_URL,
-                 post=_post):
-        self.model, self.key, self.base_url, self._post = model, key or api_key(), base_url, post
+    def __init__(self, model: str = DEFAULT_MODEL, key: str | None = None, base_url: str = "", post=_post):
+        self.model, self.key, self._post = model, key or api_key(), post
+        self.base_url = base_url or base_url_for(self.key)
         self.last: dict = {}
 
     def speak(self, system: str, user: str, max_tokens: int = 320, temperature: float = 0.6) -> str:

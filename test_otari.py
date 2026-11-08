@@ -90,3 +90,8 @@ def test_key_comes_from_env_or_file_and_is_never_echoed(tmp_path, monkeypatch):
     assert om.api_key(str(f)) == "otk_secret"
     monkeypatch.setenv("OTARI_API_KEY", "otk_env")
     assert om.api_key(str(f)) == "otk_env"
+
+
+def test_region_comes_from_the_key():
+    assert om.base_url_for("otk_v1_eu_abc") == "https://eu.api.otari.ai/api"
+    assert om.base_url_for("otk_v1_abc") == "https://api.otari.ai/api"
